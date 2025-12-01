@@ -1,128 +1,134 @@
-🎮 AR/VR Network Simulation in ns-3
+# AR/VR Network Simulation in ns-3
 
-This repository contains an ns-3–based end-to-end AR/VR network simulation model.
+This repository contains an ns-3–based end-to-end AR/VR network simulation model.  
+It includes VR downlink streaming, IMU uplink traffic, transport protocol comparison, frame-level deadline analysis, and FlowMonitor-based network statistics.
 
-It simulates:
+---
 
-📡 Downlink VR streaming
+## Features
 
-Large frame size (e.g., 90 KB)
+### Downlink (VR Streaming)
+- Large VR frames (default: 90 KB)
+- 30 FPS (one frame every 33 ms)
+- Frames are fragmented into 1200-byte packets
+- Each fragment carries a custom `VrHeader`:
+  - frameId  
+  - pktId  
+  - pktCount  
+  - sendTsMs (timestamp)
 
-30 FPS → 1 frame every 33 ms
+### Uplink (IMU/Control Traffic)
+- 100 Hz (one packet every 10 ms)
+- Small payload (100 bytes)
+- Measures uplink delay: average, p99, maximum
 
-Fragments: 1200-byte packets with custom VrHeader
+### Transport Protocols
+- UDP  
+- TCP (Cubic / BBR)  
+- QUIC-lite pacing (200 µs smooth send interval)
 
-🎯 Uplink IMU/control traffic
+### Receiver-Side Aggregation
+- Reassembles fragments into full VR frames
+- Computes:
+  - total frames
+  - on-time frames
+  - late frames
+  - incomplete frames
+  - on-time ratio
+- Deadline is configurable (default: 50 ms)
 
-100 Hz (every 10 ms)
+### FlowMonitor Integration
+FlowMonitor XML files include:
+- Throughput  
+- Packet delay and jitter  
+- Loss and drops  
+- Queue dynamics  
+- TCP retransmissions  
 
-Small packets (100 B)
+Files are stored in the `xml/` directory.
 
-Delay statistics: avg / p99 / max
+---
 
-🚚 Transport protocols supported
+## Repository Structure
 
-UDP
-
-TCP (Cubic / BBR)
-
-QUIC-lite pacing
-
-Smooth 200 µs inter-packet pacing
-
-Simulates QUIC congestion control behavior
-
-Reduces queue build-up and burst losses
-
-⏱ Frame-level analysis
-
-End-to-end VR frame aggregation by frameId
-
-Metrics computed:
-
-total
-
-onTime
-
-late
-
-incomplete
-
-ratio = onTime / total
-
-Configurable deadline (default: 50 ms)
-
-📊 Flow-level statistics
-
-Produced via ns-3 FlowMonitor:
-
-Throughput
-
-Packet delay / jitter
-
-Loss & drops
-
-TCP retransmissions
-
-Queue dynamics
-
-FlowMonitor XML files are stored in the xml/ directory.
-
-📁 Repository Structure
+```
 .
-├── arvr-sim.cc              # Main ns-3 simulation source code
+├── arvr-sim.cc              # Main ns-3 simulation code
 │
-├── run_quic.sh              # QUIC-lite pacing run (WITH congestion control)
-├── final-sweep.sh           # Baseline UDP/TCP run (NO pacing → no CC)
+├── run_quic.sh              # QUIC-lite pacing experiment (congestion control ON)
+├── final-sweep.sh           # Baseline UDP/TCP sweep (congestion control OFF)
 │
-├── results_quic.xlsx        # Results AFTER enabling pacing (CC enabled)
-├── results_final.xlsx       # Results BEFORE pacing (no CC)
+├── results_quic.xlsx        # Results with pacing enabled
+├── results_final.xlsx       # Results without pacing
 │
 └── xml/                     # FlowMonitor XML outputs
+```
 
-✔ Meaning of the two .sh files
-Script	Description
-run_quic.sh	QUIC-lite pacing — after enabling congestion control
-final-sweep.sh	Baseline UDP/TCP — before congestion control
-✔ Meaning of the two result .xlsx files
-Result file	Meaning
-results_quic.xlsx	Performance with pacing (CC ON)
-results_final.xlsx	Performance without pacing (CC OFF)
-🚀 How to Run
+### Relationship Between Scripts and Results
 
-Run from your ns-3 root:
+| File | Description |
+|------|-------------|
+| run_quic.sh | Experiments using QUIC-lite pacing (after congestion control) |
+| final-sweep.sh | Baseline UDP/TCP experiments (before congestion control) |
+| results_quic.xlsx | Results with pacing (congestion control ON) |
+| results_final.xlsx | Baseline results (congestion control OFF) |
 
-UDP baseline
+---
+
+## How to Run
+
+Run from the ns-3 root directory:
+
+### UDP
+```
 ./ns3 run "scratch/arvr-sim --transport=udp --rate=120Mbps --delay=10ms"
+```
 
-TCP BBR
+### TCP BBR
+```
 ./ns3 run "scratch/arvr-sim --transport=tcp --tcp=bbr --rate=120Mbps --delay=30ms"
+```
 
-QUIC-lite pacing
+### QUIC-lite Pacing
+```
 ./ns3 run "scratch/arvr-sim --transport=quic --rate=120Mbps --delay=50ms"
+```
 
-⚙️ Command-Line Options
-Flag	Description	Example
---transport	udp / tcp / quic	--transport=quic
---tcp	cubic / bbr	--tcp=bbr
---rate	link bandwidth	--rate=120Mbps
---delay	one-way propagation delay	--delay=30ms
---loss	packet loss rate	--loss=0.001
---deadline	frame deadline	--deadline=80
---frameSize	downlink frame size	--frameSize=90000
-📌 Example Output
+---
+
+## Command-Line Options
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--transport` | udp / tcp / quic | `--transport=quic` |
+| `--tcp` | cubic / bbr (only for TCP mode) | `--tcp=bbr` |
+| `--rate` | Link bandwidth | `--rate=120Mbps` |
+| `--delay` | One-way propagation delay | `--delay=30ms` |
+| `--loss` | Packet loss rate | `--loss=0.001` |
+| `--deadline` | VR frame deadline | `--deadline=80` |
+| `--frameSize` | Downlink VR frame size | `--frameSize=90000` |
+
+---
+
+## Example Output
+
+```
 [UL-IMU] avgDelay=10 p99=10 max=10
 [VR-RECV] total=576 onTime=572 late=1 incomplete=3 ratio=0.993056
+```
 
+Meaning:
+- total – frames for which at least one fragment arrived
+- onTime – completed within deadline
+- late – completed but exceeded deadline
+- incomplete – missing fragments
+- ratio – onTime / total
 
-Interpretation:
+---
 
-total — frames that started arriving
+## Source Code
 
-onTime — complete + within deadline
+The full simulation logic is implemented in:
 
-late — complete but beyond deadline
+`arvr-sim.cc`
 
-incomplete — fragments missing
-
-ratio — onTime / total
